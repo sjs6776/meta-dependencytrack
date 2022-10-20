@@ -15,6 +15,8 @@ DEPENDENCYTRACK_PROJECT ??= ""
 DEPENDENCYTRACK_API_URL ??= "http://localhost:8081/api"
 DEPENDENCYTRACK_API_KEY ??= ""
 
+DEPENDENCYTRACK_IGNORE_LICENSES ??= "CLOSED"
+
 python do_dependencytrack_init() {
     import uuid
     from datetime import datetime
@@ -48,6 +50,8 @@ python do_dependencytrack_collect() {
     version = d.getVar("CVE_VERSION")
     sbom = read_sbom(d)
 
+    ignore_license_list = d.getVar("DEPENDENCYTRACK_IGNORE_LICENSES").split()
+
     # update it with the new package info
     names = name.split()
     for index, cpe in enumerate(oe.cve_check.get_cpe_ids(name, version)):
@@ -58,6 +62,14 @@ python do_dependencytrack_collect() {
                 "version": version,
                 "cpe": cpe
             })
+            licenses = d.getVar("LICENSE").replace("|", "").replace("&", "").split()
+            if licenses is not None:
+               sbom["components"][-1]["licenses"] = []
+               for license in licenses:
+                   if license is not None:
+                      can_license = canonical_license(d, license)
+                      if can_license not in ignore_license_list:
+                         sbom["components"][-1]["licenses"].append({"license": {"id": can_license}})
 
     # write it back to the deploy directory
     write_sbom(d, sbom)
